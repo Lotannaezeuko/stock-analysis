@@ -82,3 +82,15 @@ VALUES
 ('2024-12-01', 'GDP Growth', 3.5),
 ('2024-12-01', 'Inflation Rate', 2.1),
 ('2024-12-01', 'Unemployment Rate', 4.2);
+
+CREATE TABLE stock_fundamentals (
+    symbol TEXT PRIMARY KEY,
+    name TEXT,
+    sector TEXT,
+    market_cap BIGINT,
+    pe_ratio FLOAT,
+    dividend_yield FLOAT,
+    pb_ratio FLOAT,
+    debt_to_equity FLOAT,
+    eps FLOAT
+);
