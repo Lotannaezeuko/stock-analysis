@@ -1,4 +1,5 @@
 from fetch import fetch_overview, insert_fundamentals
+from screener import run_screener
 
 if __name__ == "__main__":
     symbols = ["AAPL", "MSFT", "JNJ", "NVDA", "V"]  # Example symbols
@@ -10,3 +11,6 @@ if __name__ == "__main__":
             print(f"{symbol} inserted.")
         else:
             print(f"Failed to fetch data for {symbol}")
+    
+    print("=== STOCK SCREENER ===")
+    run_screener()
