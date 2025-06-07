@@ -15,6 +15,34 @@ def get_user_filters():
         "order": input("Order (asc/desc): ").strip().lower()
     }
 
+def preset_dividend_payers():
+    return {
+        "sector": "",
+        "min_pe": "5",
+        "max_pe": "20",
+        "min_div": "4",
+        "min_mcap": "10000000000",
+        "min_eps": "",
+        "max_pb": "",
+        "max_debt": "1",
+        "sort_by": "dividend_yield",
+        "order": "desc"
+    }
+
+def preset_growth_stocks():
+    return {
+        "sector": "",
+        "min_pe": "15",
+        "max_pe": "",
+        "min_div": "0",
+        "min_mcap": "",
+        "min_eps": "3",
+        "max_pb": "10",
+        "max_debt": "0.5",
+        "sort_by": "eps",
+        "order": "desc"
+    }
+
 def build_query(filters):
     conditions = []
     params = []
@@ -77,7 +105,21 @@ def display_results(df):
 
 def run_screener():
     print("=== STOCK SCREENER ===")
-    filters = get_user_filters()
+    print("1. Manual filters")
+    print("2. Top Dividend Payers")
+    print("3. Growth Stocks")
+    mode = input("Choose screener mode (1/2/3): ").strip()
+
+    if mode == "1":
+        filters = get_user_filters()
+    elif mode == "2":
+        filters = preset_dividend_payers()
+    elif mode == "3":
+        filters = preset_growth_stocks()
+    else:
+        print("Invalid option. Defaulting to manual.")
+        filters = get_user_filters()
+
     query, params = build_query(filters)
     df = run_query(query, params)
     display_results(df)
