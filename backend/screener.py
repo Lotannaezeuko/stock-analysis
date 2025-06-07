@@ -7,6 +7,9 @@ def run_screener():
     max_pe = input("Max P/E ratio (leave blank to skip): ")
     min_div = input("Min Dividend Yield % (leave blank to skip): ")
     min_mcap = input("Min Market Cap (e.g. 10000000000) (leave blank to skip): ")
+    min_eps = input("Min EPS (leave blank to skip): ")
+    max_pb = input("Max P/B Ratio (leave blank to skip): ")
+    max_debt = input("Max Debt-to-Equity Ratio (leave blank to skip): ")
 
     filters = []
     params = []
@@ -31,10 +34,22 @@ def run_screener():
         filters.append("market_cap >= %s")
         params.append(int(min_mcap))
 
+    if min_eps:
+        filters.append("eps >= %s")
+        params.append(float(min_eps))
+
+    if max_pb:
+        filters.append("pb_ratio <= %s")
+        params.append(float(max_pb))
+
+    if max_debt:
+        filters.append("debt_to_equity <= %s")
+        params.append(float(max_debt))
+
     where_clause = " AND ".join(filters) if filters else "TRUE"
 
     query = f"""
-        SELECT symbol, name, sector, market_cap, pe_ratio, dividend_yield
+        SELECT symbol, name, sector, market_cap, pe_ratio, dividend_yield, eps, pb_ratio, debt_to_equity
         FROM stock_fundamentals
         WHERE {where_clause}
         ORDER BY market_cap DESC;

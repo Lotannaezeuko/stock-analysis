@@ -19,9 +19,17 @@ def insert_fundamentals(data):
         cursor = conn.cursor()
         query = """
             INSERT INTO stock_fundamentals
-            (symbol, name, sector, market_cap, pe_ratio, dividend_yield, pb_ratio, debt_to_equity, eps)
+            (symbol, name, sector, market_cap, pe_ratio, dividend_yield, eps, pb_ratio, debt_to_equity)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (symbol) DO NOTHING;
+            ON CONFLICT (symbol) DO UPDATE SET
+                name = EXCLUDED.name,
+                sector = EXCLUDED.sector,
+                market_cap = EXCLUDED.market_cap,
+                pe_ratio = EXCLUDED.pe_ratio,
+                dividend_yield = EXCLUDED.dividend_yield,
+                eps = EXCLUDED.eps,
+                pb_ratio = EXCLUDED.pb_ratio,
+                debt_to_equity = EXCLUDED.debt_to_equity;
         """
         cursor.execute(query, (
             data.get("Symbol"),
@@ -30,9 +38,9 @@ def insert_fundamentals(data):
             int(data.get("MarketCapitalization") or 0),
             float(data.get("PERatio") or 0),
             float(data.get("DividendYield") or 0),
+            float(data.get("EPS") or 0),
             float(data.get("PriceToBookRatio") or 0),
-            float(data.get("DebtToEquity") or 0),
-            float(data.get("EPS") or 0)
+            float(data.get("DebtToEquity") or 0)
         ))
         conn.commit()
     except Exception as e:
