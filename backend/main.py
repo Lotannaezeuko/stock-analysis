@@ -2,7 +2,7 @@ from fetch import fetch_overview, insert_fundamentals
 from screener import run_screener
 
 if __name__ == "__main__":
-    symbols = ["AAPL", "MSFT", "JNJ", "NVDA", "V"]  # Example symbols
+    symbols = ["META"]  # Example symbols
     for symbol in symbols:
         print(f"Fetching {symbol}...")
         data = fetch_overview(symbol)
