@@ -11,6 +11,5 @@ if __name__ == "__main__":
             print(f"{symbol} inserted.")
         else:
             print(f"Failed to fetch data for {symbol}")
-    
-    print("=== STOCK SCREENER ===")
+
     run_screener()
