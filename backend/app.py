@@ -14,17 +14,82 @@ Use the filters in the sidebar to discover quality investment opportunities base
 # Sidebar filters
 st.sidebar.header("🔍 Filter Criteria")
 
-sector = st.sidebar.text_input("Sector (e.g. TECHNOLOGY)", "")
-min_pe = st.sidebar.number_input("Min P/E Ratio", value=0.0, step=0.1)
-max_pe = st.sidebar.number_input("Max P/E Ratio", value=100.0, step=0.1)
-min_div = st.sidebar.number_input("Min Dividend Yield (%)", value=0.0, step=0.1)
-min_mcap = st.sidebar.number_input("Min Market Cap", value=0)
-min_eps = st.sidebar.number_input("Min EPS", value=0.0, step=0.1)
-max_pb = st.sidebar.number_input("Max Price-to-Book Ratio", value=100.0, step=0.1)
-max_debt = st.sidebar.number_input("Max Debt-to-Equity", value=100.0, step=0.1)
+with st.sidebar.expander("📚 What do these metrics mean?"):
+    st.markdown("""
+- **Sector**: The industry the company operates in (e.g., Technology, Healthcare).
+- **P/E Ratio** *(Price to Earnings)*: How much investors pay for each $1 of profit. Lower can mean undervalued.
+- **Dividend Yield**: The percentage of the stock price paid back to investors as dividends.
+- **Market Capitalization**: The total value of all a company’s shares. Large cap = more stable.
+- **EPS (Earnings Per Share)**: Company profit divided by the number of shares. Higher = more profitable.
+- **Price-to-Book Ratio**: Compares the stock price to the company’s net worth. Under 1 can suggest undervaluation.
+- **Debt-to-Equity**: Shows how much debt a company has vs. shareholder equity. Lower = less financial risk.
+    """)
 
-sort_by = st.sidebar.selectbox("Sort by", ["market_cap", "pe_ratio", "dividend_yield", "eps", "pb_ratio", "debt_to_equity"])
-order = st.sidebar.radio("Order", ["asc", "desc"])
+sector = st.sidebar.text_input(
+    "Sector (e.g. TECHNOLOGY)", 
+    "",
+    help="Filter by the company's industry, like TECHNOLOGY, HEALTHCARE, etc."
+)
+
+min_pe = st.sidebar.number_input(
+    "Min P/E Ratio", 
+    value=0.0, 
+    step=0.1,
+    help="Price-to-Earnings ratio. Shows how much investors pay for $1 of earnings. Lower can mean undervalued."
+)
+
+max_pe = st.sidebar.number_input(
+    "Max P/E Ratio", 
+    value=100.0, 
+    step=0.1,
+    help="Set an upper limit for the P/E ratio. High P/E often reflects growth expectations or overvaluation."
+)
+
+min_div = st.sidebar.number_input(
+    "Min Dividend Yield (%)", 
+    value=0.0, 
+    step=0.1,
+    help="Percentage of the stock price returned to investors as dividends annually. Great for income-focused investors."
+)
+
+min_mcap = st.sidebar.number_input(
+    "Min Market Cap", 
+    value=0,
+    help="Total market value of a company. Large cap companies are usually more stable and less volatile."
+)
+
+min_eps = st.sidebar.number_input(
+    "Min EPS", 
+    value=0.0, 
+    step=0.1,
+    help="Earnings Per Share. Indicates how much profit the company makes per share. Higher = more profitable."
+)
+
+max_pb = st.sidebar.number_input(
+    "Max Price-to-Book Ratio", 
+    value=100.0, 
+    step=0.1,
+    help="Compares stock price to the company’s book value (assets - liabilities). Under 1 might suggest undervaluation."
+)
+
+max_debt = st.sidebar.number_input(
+    "Max Debt-to-Equity", 
+    value=100.0, 
+    step=0.1,
+    help="Measures how much debt a company has compared to its shareholder equity. Lower = less financial risk."
+)
+
+sort_by = st.sidebar.selectbox(
+    "Sort by", 
+    ["market_cap", "pe_ratio", "dividend_yield", "eps", "pb_ratio", "debt_to_equity"],
+    help="Choose which metric to sort the screened results by."
+)
+
+order = st.sidebar.radio(
+    "Order", 
+    ["asc", "desc"],
+    help="Sort in ascending or descending order."
+)
 
 # Assemble filters
 filters = {
