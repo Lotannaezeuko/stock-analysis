@@ -4,17 +4,11 @@ import json
 import os
 import streamlit as st
 
-st.write("▶️ Debug: os.getcwd():", os.getcwd())
-st.write("▶️ Debug: Root files/directories:", os.listdir(os.getcwd()))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # e.g., /mount/src/stock-analysis/backend
+SAVE_PATH = os.path.join(BASE_DIR, "saved_screens.json")
 
-# If there’s a 'backend' folder, list it too:
-if os.path.exists("backend") and os.path.isdir("backend"):
-    st.write("▶️ Debug: backend/ contents:", os.listdir("backend"))
-else:
-    st.write("▶️ Debug: No backend/ folder found at root.")
-
-SAVE_PATH = "backend/saved_screens.json"
-st.write("Looking for saved_screens.json at:", SAVE_PATH)
+st.write(f"▶️ Debug: SAVE_PATH resolved to: {SAVE_PATH}")
+st.write(f"▶️ Debug: os.path.exists(SAVE_PATH)? {os.path.exists(SAVE_PATH)}")
 
 def get_user_filters():
     return {
