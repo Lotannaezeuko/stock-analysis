@@ -147,11 +147,13 @@ else:
 # Query the database
 query, params = build_query(filters)
 
+conn = None
 try:
     conn = get_connection()
     df = pd.read_sql_query(query, conn, params=params)
 finally:
-    conn.close()
+    if conn:
+        conn.close()
 
 # Display results
 if df.empty:
