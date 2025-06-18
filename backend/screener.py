@@ -2,6 +2,7 @@ from db import get_connection
 import pandas as pd
 import json
 import os
+import streamlit as st
 
 SAVE_PATH = "saved_screens.json"
 
@@ -129,10 +130,12 @@ def run_screener():
     display_results(df)
 
 def load_saved_screens():
-    if not os.path.exists(SAVE_PATH):
+    try:
+        with open("saved_screens.json", "r") as f:
+            return json.load(f)
+    except Exception as e:
+        st.error(f"Error loading saved screens: {e}")
         return []
-    with open(SAVE_PATH, "r") as f:
-        return json.load(f)
 
 def save_new_screen(label, filters):
     screens = load_saved_screens()
