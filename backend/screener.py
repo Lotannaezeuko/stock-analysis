@@ -3,8 +3,10 @@ import pandas as pd
 import json
 import os
 import streamlit as st
+from pathlib import Path
 
-SAVE_PATH = "backend/saved_screens.json"
+SCRIPT_DIR = Path(__file__).parent
+SAVE_PATH = SCRIPT_DIR / "backend" / "saved_screens.json"
 st.write("Looking for saved_screens.json at:", SAVE_PATH)
 
 def get_user_filters():
