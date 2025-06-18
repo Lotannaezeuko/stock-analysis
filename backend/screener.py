@@ -1,5 +1,9 @@
 from db import get_connection
 import pandas as pd
+import json
+import os
+
+SAVE_PATH = "saved_screens.json"
 
 def get_user_filters():
     return {
@@ -123,3 +127,15 @@ def run_screener():
     query, params = build_query(filters)
     df = run_query(query, params)
     display_results(df)
+
+def load_saved_screens():
+    if not os.path.exists(SAVE_PATH):
+        return []
+    with open(SAVE_PATH, "r") as f:
+        return json.load(f)
+
+def save_new_screen(label, filters):
+    screens = load_saved_screens()
+    screens.append({"label": label, "filters": filters})
+    with open(SAVE_PATH, "w") as f:
+        json.dump(screens, f, indent=2)

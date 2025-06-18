@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from db import get_connection
-from screener import build_query  # Reuse your query builder
+from screener import build_query, load_saved_screens, save_new_screen  # Reuse your query builder
 
 st.set_page_config(page_title="Lotanna's Stock Screener", layout="wide")
 st.title("📈 Lotanna's Stock Screener")
@@ -91,8 +91,37 @@ order = st.sidebar.radio(
     help="Sort in ascending or descending order."
 )
 
-# Assemble filters
-filters = {
+st.sidebar.markdown("---")
+st.sidebar.subheader("💾 Save or Load Screens")
+
+# Save current screen
+screen_name = st.sidebar.text_input("Name this screen", placeholder="e.g. Dividend Picks")
+if st.sidebar.button("✅ Save This Screen"):
+    if screen_name.strip() == "":
+        st.sidebar.warning("Please enter a name for this screen.")
+    else:
+        manual_filters = {
+            "sector": sector,
+            "min_pe": min_pe,
+            "max_pe": max_pe,
+            "min_div": min_div,
+            "min_mcap": min_mcap,
+            "min_eps": min_eps,
+            "max_pb": max_pb,
+            "max_debt": max_debt,
+            "sort_by": sort_by,
+            "order": order
+        }
+        save_new_screen(screen_name, manual_filters)
+        st.sidebar.success(f"Saved screen as '{screen_name}'")
+
+# Load saved screens
+saved_screens = load_saved_screens()
+screen_options = [s["label"] for s in saved_screens]
+selected_screen = st.sidebar.selectbox("📂 Load Saved Screen", ["None"] + screen_options)
+
+# Use filters from selected screen if available, else from manual inputs
+manual_filters = {
     "sector": sector,
     "min_pe": min_pe,
     "max_pe": max_pe,
@@ -104,6 +133,13 @@ filters = {
     "sort_by": sort_by,
     "order": order
 }
+
+if selected_screen != "None":
+    selected = next(s for s in saved_screens if s["label"] == selected_screen)
+    filters = selected["filters"]
+    st.sidebar.info(f"Loaded screen: {selected_screen}")
+else:
+    filters = manual_filters
 
 # Query the database
 query, params = build_query(filters)
