@@ -13,5 +13,65 @@
       "sort_by": "dividend_yield",
       "order": "desc"
     }
+  },
+  {
+    "label": "💸 Dividend Payers",
+    "filters": {
+      "sector": "",
+      "min_pe": 0.0,
+      "max_pe": 100.0,
+      "min_div": 2.0,
+      "min_mcap": 0,
+      "min_eps": 0.0,
+      "max_pb": 100.0,
+      "max_debt": 100.0,
+      "sort_by": "dividend_yield",
+      "order": "desc"
+    }
+  },
+  {
+    "label": "📉 Undervalued Picks",
+    "filters": {
+      "sector": "",
+      "min_pe": 0.0,
+      "max_pe": 15.0,
+      "min_div": 0.0,
+      "min_mcap": 0,
+      "min_eps": 0.0,
+      "max_pb": 1.0,
+      "max_debt": 100.0,
+      "sort_by": "pe_ratio",
+      "order": "asc"
+    }
+  },
+  {
+    "label": "📈 Growth Stocks",
+    "filters": {
+      "sector": "",
+      "min_pe": 15.0,
+      "max_pe": 100.0,
+      "min_div": 0.0,
+      "min_mcap": 1000000000,
+      "min_eps": 1.0,
+      "max_pb": 5.0,
+      "max_debt": 50.0,
+      "sort_by": "eps_growth",
+      "order": "desc"
+    }
+  },
+  {
+    "label": "📊 Tech Giants",
+    "filters": {
+      "sector": "TECHNOLOGY",
+      "min_pe": 0.0,
+      "max_pe": 100.0,
+      "min_div": 0.0,
+      "min_mcap": 100000000000,
+      "min_eps": 1.0,
+      "max_pb": 5.0,
+      "max_debt": 50.0,
+      "sort_by": "market_cap",
+      "order": "desc"
+    }
   }
 ]
