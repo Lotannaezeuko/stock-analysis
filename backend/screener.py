@@ -4,7 +4,7 @@ import json
 import os
 import streamlit as st
 
-SAVE_PATH = "backend/saved_screens.json"
+SAVE_PATH = "saved_screens.json"
 
 def get_user_filters():
     return {
