@@ -4,7 +4,10 @@ import json
 import os
 import streamlit as st
 
+
+
 SAVE_PATH = os.path.join(os.path.dirname(__file__), "saved_screens.json")
+st.write("Looking for saved_screens.json at:", SAVE_PATH)
 
 def get_user_filters():
     return {
