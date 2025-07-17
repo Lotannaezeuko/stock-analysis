@@ -1,13 +1,6 @@
 from db import get_connection
 import pandas as pd
 import json
-import os
-import streamlit as st
-from pathlib import Path
-
-SCRIPT_DIR = Path(__file__).parent
-SAVE_PATH = SCRIPT_DIR / "backend" / "saved_screens.json"
-st.write("Looking for saved_screens.json at:", SAVE_PATH)
 
 def get_user_filters():
     return {
@@ -116,7 +109,8 @@ def run_screener():
     print("1. Manual filters")
     print("2. Top Dividend Payers")
     print("3. Growth Stocks")
-    mode = input("Choose screener mode (1/2/3): ").strip()
+    print("4. Load a saved screen")
+    mode = input("Choose screener mode (1/2/3/4): ").strip()
 
     if mode == "1":
         filters = get_user_filters()
@@ -124,6 +118,17 @@ def run_screener():
         filters = preset_dividend_payers()
     elif mode == "3":
         filters = preset_growth_stocks()
+    elif mode == "4":
+        screens = load_saved_screens()
+        print("\nSaved Screens:")
+        for i, s in enumerate(screens):
+            print(f"{i + 1}. {s['label']}")
+        idx = input("Pick one (number): ").strip()
+        try:
+            filters = screens[int(idx) - 1]["filters"]
+        except:
+            print("Invalid selection. Using manual filters.")
+            filters = get_user_filters()
     else:
         print("Invalid option. Defaulting to manual.")
         filters = get_user_filters()
@@ -134,14 +139,26 @@ def run_screener():
 
 def load_saved_screens():
     try:
-        with open("saved_screens.json", "r") as f:
-            return json.load(f)
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT label, filters FROM saved_screens ORDER BY created_at DESC")
+        rows = cur.fetchall()
+        conn.close()
+        return [{"label": r[0], "filters": r[1]} for r in rows]
     except Exception as e:
-        st.error(f"Error loading saved screens: {e}")
+        print(f"Error loading saved screens: {e}")
         return []
 
 def save_new_screen(label, filters):
-    screens = load_saved_screens()
-    screens.append({"label": label, "filters": filters})
-    with open(SAVE_PATH, "w") as f:
-        json.dump(screens, f, indent=2)
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO saved_screens (label, filters) VALUES (%s, %s)",
+            (label, json.dumps(filters))
+        )
+        conn.commit()
+        conn.close()
+        print(f"Screen '{label}' saved.")
+    except Exception as e:
+        print(f"Error saving screen: {e}")

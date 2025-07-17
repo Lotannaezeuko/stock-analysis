@@ -94,3 +94,10 @@ CREATE TABLE stock_fundamentals (
     debt_to_equity FLOAT,
     eps FLOAT
 );
+
+CREATE TABLE saved_screens (
+  id SERIAL PRIMARY KEY,
+  label TEXT NOT NULL,
+  filters JSONB NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
