@@ -2,8 +2,9 @@ from psycopg2.extras import execute_values
 
 # Upsert: insert new days; for days we already have, overwrite with the latest
 # values (the most recent bar can be revised after we first fetch it).
+# run_id records which pipeline run last wrote each row (data lineage).
 UPSERT_DAILY_PRICES = """
-    INSERT INTO daily_prices (symbol, trade_date, open, high, low, close, volume)
+    INSERT INTO daily_prices (symbol, trade_date, open, high, low, close, volume, run_id)
     VALUES %s
     ON CONFLICT (symbol, trade_date) DO UPDATE SET
         open = EXCLUDED.open,
@@ -11,16 +12,20 @@ UPSERT_DAILY_PRICES = """
         low = EXCLUDED.low,
         close = EXCLUDED.close,
         volume = EXCLUDED.volume,
+        run_id = EXCLUDED.run_id,
         loaded_at = now();
 """
 
-DAILY_PRICE_TEMPLATE = "(%(symbol)s, %(trade_date)s, %(open)s, %(high)s, %(low)s, %(close)s, %(volume)s)"
+DAILY_PRICE_TEMPLATE = (
+    "(%(symbol)s, %(trade_date)s, %(open)s, %(high)s, %(low)s, %(close)s, %(volume)s, %(run_id)s)"
+)
 
 
-def upsert_daily_prices(conn, rows: list[dict]) -> int:
+def upsert_daily_prices(conn, rows: list[dict], run_id: int | None = None) -> int:
     """Save all rows for one symbol in a single transaction. Returns the number of rows written."""
     if not rows:
         return 0
+    rows = [{**row, "run_id": run_id} for row in rows]
     # `with conn` = one transaction: all rows commit together, or none do.
     # execute_values sends every row in one statement instead of one per row.
     with conn, conn.cursor() as cur:

@@ -44,38 +44,43 @@ def preset_growth_stocks():
         "order": "desc"
     }
 
-SORTABLE_COLUMNS = {"market_cap", "pe_ratio", "dividend_yield", "eps", "pb_ratio", "debt_to_equity"}
+SORTABLE_COLUMNS = {
+    "close", "change_pct", "volume",
+    "market_cap", "pe_ratio", "dividend_yield", "eps", "pb_ratio", "debt_to_equity",
+}
 
 def build_query(filters):
-    conditions = []
+    # Universe = the stocks the pipeline tracks. Fundamental filters (f.*) only
+    # match stocks that have a fundamentals snapshot.
+    conditions = ["s.is_active"]
     params = []
 
     if filters["sector"]:
-        conditions.append("UPPER(sector) = %s")
+        conditions.append("UPPER(s.sector) = %s")
         params.append(filters["sector"].upper())
     if filters["min_pe"]:
-        conditions.append("pe_ratio >= %s")
+        conditions.append("f.pe_ratio >= %s")
         params.append(float(filters["min_pe"]))
     if filters["max_pe"]:
-        conditions.append("pe_ratio <= %s")
+        conditions.append("f.pe_ratio <= %s")
         params.append(float(filters["max_pe"]))
     if filters["min_div"]:
-        conditions.append("dividend_yield >= %s")
+        conditions.append("f.dividend_yield >= %s")
         params.append(float(filters["min_div"]) / 100)
     if filters["min_mcap"]:
-        conditions.append("market_cap >= %s")
+        conditions.append("f.market_cap >= %s")
         params.append(int(filters["min_mcap"]))
     if filters["min_eps"]:
-        conditions.append("eps >= %s")
+        conditions.append("f.eps >= %s")
         params.append(float(filters["min_eps"]))
     if filters["max_pb"]:
-        conditions.append("pb_ratio <= %s")
+        conditions.append("f.pb_ratio <= %s")
         params.append(float(filters["max_pb"]))
     if filters["max_debt"]:
-        conditions.append("debt_to_equity <= %s")
+        conditions.append("f.debt_to_equity <= %s")
         params.append(float(filters["max_debt"]))
 
-    where_clause = " AND ".join(conditions) if conditions else "TRUE"
+    where_clause = " AND ".join(conditions)
 
     # Column names can't be passed as %s params, so whitelist them instead of
     # putting user input straight into the SQL string (SQL injection).
@@ -83,9 +88,17 @@ def build_query(filters):
     order = "ASC" if str(filters["order"]).lower() == "asc" else "DESC"
     sort_clause = f"ORDER BY {sort_by} {order} NULLS LAST"
 
+    # Prices are refreshed daily by the pipeline; fundamentals are a static
+    # snapshot (NULL for stocks that aren't in it).
     query = f"""
-        SELECT symbol, name, sector, market_cap, pe_ratio, dividend_yield, eps, pb_ratio, debt_to_equity
-        FROM stock_fundamentals
+        SELECT s.symbol, s.name, s.sector,
+               p.trade_date AS price_date,
+               p.open::float AS open, p.high::float AS high, p.low::float AS low,
+               p.close::float AS close, p.change_pct::float AS change_pct, p.volume,
+               f.market_cap, f.pe_ratio, f.dividend_yield, f.eps, f.pb_ratio, f.debt_to_equity
+        FROM symbols s
+        LEFT JOIN latest_prices p ON p.symbol = s.symbol
+        LEFT JOIN stock_fundamentals f ON f.symbol = s.symbol
         WHERE {where_clause}
         {sort_clause};
     """

@@ -117,6 +117,26 @@ LEFT JOIN LATERAL (
 ) e ON TRUE;
 
 -- ---------------------------------------------------------------------------
+-- Newest bar per stock, with the change from the previous trading day.
+-- Used by the screener; one definition shared by every consumer.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE VIEW latest_prices AS
+SELECT DISTINCT ON (symbol)
+    symbol,
+    trade_date,
+    open,
+    high,
+    low,
+    close,
+    volume,
+    close / prev_close - 1 AS change_pct
+FROM (
+    SELECT d.*, LAG(close) OVER (PARTITION BY symbol ORDER BY trade_date) AS prev_close
+    FROM daily_prices d
+) with_prev
+ORDER BY symbol, trade_date DESC;
+
+-- ---------------------------------------------------------------------------
 -- Screener app tables (pre-existing). Kept here so a fresh database
 -- (e.g. a new Supabase project) gets everything from one file.
 -- ---------------------------------------------------------------------------
