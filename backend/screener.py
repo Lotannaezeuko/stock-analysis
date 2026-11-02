@@ -44,6 +44,8 @@ def preset_growth_stocks():
         "order": "desc"
     }
 
+SORTABLE_COLUMNS = {"market_cap", "pe_ratio", "dividend_yield", "eps", "pb_ratio", "debt_to_equity"}
+
 def build_query(filters):
     conditions = []
     params = []
@@ -74,7 +76,12 @@ def build_query(filters):
         params.append(float(filters["max_debt"]))
 
     where_clause = " AND ".join(conditions) if conditions else "TRUE"
-    sort_clause = f"ORDER BY {filters['sort_by']} {filters['order'].upper()}" if filters["sort_by"] else "ORDER BY market_cap DESC"
+
+    # Column names can't be passed as %s params, so whitelist them instead of
+    # putting user input straight into the SQL string (SQL injection).
+    sort_by = filters["sort_by"] if filters["sort_by"] in SORTABLE_COLUMNS else "market_cap"
+    order = "ASC" if str(filters["order"]).lower() == "asc" else "DESC"
+    sort_clause = f"ORDER BY {sort_by} {order} NULLS LAST"
 
     query = f"""
         SELECT symbol, name, sector, market_cap, pe_ratio, dividend_yield, eps, pb_ratio, debt_to_equity
