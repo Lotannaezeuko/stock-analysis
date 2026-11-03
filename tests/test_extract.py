@@ -112,12 +112,85 @@ def test_per_second_burst_limit_is_not_mistaken_for_the_daily_quota(http, burst_
     assert not isinstance(error.value, extract.DailyQuotaExceeded)
 
 
-def test_back_to_back_calls_are_spaced_out(http, daily_response):
-    respond_with(http, daily_response)
+# ---------------------------------------------------------------- pacing
 
+GAP = extract.MIN_SECONDS_BETWEEN_CALLS + extract.SAFETY_MARGIN_SECONDS
+
+
+class FakeClock:
+    """Stands in for the time module inside extract: no real waiting."""
+
+    def __init__(self):
+        self.now = 1000.0
+        self.sleeps = []
+
+    def monotonic(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.sleeps.append(seconds)
+        self.now += seconds
+
+
+@pytest.fixture
+def clock(monkeypatch, daily_response):
+    """Fake clock plus a fake API whose responses take `clock.response_seconds`."""
+    fake = FakeClock()
+    fake.response_seconds = 0.0
+
+    def fake_get(url, params, timeout):
+        fake.now += fake.response_seconds
+        res = MagicMock()
+        res.json.return_value = daily_response
+        return res
+
+    monkeypatch.setattr(extract, "time", fake)
+    monkeypatch.setattr(extract.requests, "get", fake_get)
+    monkeypatch.setattr(extract, "_last_call_at", 0.0)
+    return fake
+
+
+def test_gap_includes_the_safety_margin():
+    assert GAP == 4
+
+
+def test_first_call_goes_straight_out_and_the_next_waits_the_full_gap(clock):
     extract.fetch_daily_prices("PFE", "my-key")
     extract.fetch_daily_prices("MMM", "my-key")
 
-    # First call goes straight out; the second waits ~MIN_SECONDS_BETWEEN_CALLS
-    assert len(http.sleeps) == 1
-    assert http.sleeps[0] == pytest.approx(extract.MIN_SECONDS_BETWEEN_CALLS, abs=0.2)
+    assert clock.sleeps == [GAP]
+
+
+def test_gap_is_measured_from_when_the_previous_response_finished(clock):
+    # Regression: META's response took ~1.3s and MMM then hit the per-second limit,
+    # because the gap was measured from when META's request *started*
+    clock.response_seconds = 1.5
+
+    extract.fetch_daily_prices("META", "my-key")
+    extract.fetch_daily_prices("MMM", "my-key")
+
+    assert clock.sleeps == [GAP]  # not GAP - 1.5
+
+
+def test_no_wait_if_enough_time_has_already_passed(clock):
+    extract.fetch_daily_prices("PFE", "my-key")
+    clock.now += GAP + 1  # e.g. transform + load took a while
+
+    extract.fetch_daily_prices("MMM", "my-key")
+
+    assert clock.sleeps == []
+
+
+def test_a_failed_request_still_counts_for_pacing(clock, monkeypatch):
+    def timeout(url, params, timeout):
+        clock.now += 30
+        raise requests.Timeout("Read timed out")
+
+    monkeypatch.setattr(extract.requests, "get", timeout)
+    with pytest.raises(extract.ExtractError):
+        extract.fetch_daily_prices("PGR", "my-key")
+    with pytest.raises(extract.ExtractError):
+        extract.fetch_daily_prices("PSX", "my-key")
+
+    # The clock restarted when PGR's request gave up, so PSX waited the full gap
+    assert clock.sleeps == [GAP]

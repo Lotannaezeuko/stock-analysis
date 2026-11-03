@@ -13,7 +13,7 @@ screen stocks and explore their price history.
 - **Model-ready:** a `price_features` view with returns, moving averages, volatility and a
   next-day target, built point-in-time to avoid look-ahead bias
 - **Operable:** scheduled with cron, every run audited in the database, logs tagged by run ID,
-  non-zero exit codes on failure, and 48 automated tests run in CI
+  non-zero exit codes on failure, and 52 automated tests run in CI
 
 ## Screenshots
 
@@ -99,8 +99,10 @@ Bad data is caught in four layers:
 - **Fail fast on the daily quota.** Once the API reports its daily limit is used up, the run
   stops immediately and records which stocks were skipped, instead of making calls that can't
   succeed. The per-second burst limit is recognised separately, since it's only temporary.
-- **Rate limiting.** Calls are spaced 2 seconds apart, using a monotonic clock so system clock
-  changes can't break the pacing.
+- **Rate limiting.** Each call waits at least 4 seconds after the previous response *finishes*:
+  2 seconds for the API's limit plus a 2-second safety margin. Measuring from the end of the
+  response matters, because a slow response could otherwise let two requests reach the API less
+  than a second apart. A monotonic clock means system clock changes can't break the pacing.
 - **Exit codes.** `0` only if every stock succeeded. Anything else exits `1`, so the scheduler
   can flag it.
 - **No secrets in logs.** The API key is redacted from every error message before it's logged
@@ -170,7 +172,7 @@ The first command processes every active stock. The second re-runs only the stoc
 which is useful for retrying failures without spending the whole API budget.
 
 **API budget:** the free tier allows 25 calls a day and 1 per second. The seed tracks
-20 active stocks, so one daily run uses 20 calls (about 40 seconds).
+20 active stocks, so one daily run uses 20 calls (about 1.5 minutes).
 
 ### Changing which stocks are tracked
 
@@ -298,7 +300,7 @@ backend/            Streamlit screener app
 | `Decimal` / `NUMERIC` instead of `float` | Prices are stored exactly (30.51, not 30.50999…). |
 | Validation in Python *and* constraints in Postgres | Python gives friendly per-row rejection with reasons. The database guarantees integrity for every writer, not just this pipeline. |
 | Stock list in a table, not in code | One source of truth. Stocks can be paused or added without a deploy, and the foreign key stops prices being loaded for unknown stocks. |
-| cron rather than an orchestrator | One job, one machine, ~40 seconds a day. Airflow or Dagster would add more moving parts than the job itself. |
+| cron rather than an orchestrator | One job, one machine, ~1.5 minutes a day. Airflow or Dagster would add more moving parts than the job itself. |
 
 ## Limitations & next steps
 

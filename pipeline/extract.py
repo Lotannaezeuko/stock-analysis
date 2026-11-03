@@ -4,11 +4,13 @@ import requests
 
 BASE_URL = "https://www.alphavantage.co/query"
 TIMEOUT_SECONDS = 30
-# Free tier allows 1 request per second. 1.1s still tripped the limit on the
-# first live run (network jitter), so leave generous headroom.
+# Free tier allows 1 request per second. The gap is measured from when the
+# previous response *finished*: measuring from when it started still tripped
+# the limit when a slow response made two requests reach the API close together.
 MIN_SECONDS_BETWEEN_CALLS = 2
+SAFETY_MARGIN_SECONDS = 2
 
-_last_call_at = 0.0
+_last_call_at = 0.0  # monotonic time the previous response finished
 
 
 class ExtractError(Exception):
@@ -28,11 +30,10 @@ def _redact(text: str, api_key: str) -> str:
 def _call_api(params: dict, api_key: str) -> dict:
     global _last_call_at
 
-    # Wait if the previous call was less than MIN_SECONDS_BETWEEN_CALLS ago
-    wait = MIN_SECONDS_BETWEEN_CALLS - (time.monotonic() - _last_call_at)
+    # Wait until enough time has passed since the previous response finished
+    wait = MIN_SECONDS_BETWEEN_CALLS + SAFETY_MARGIN_SECONDS - (time.monotonic() - _last_call_at)
     if wait > 0:
         time.sleep(wait)
-    _last_call_at = time.monotonic()
 
     try:
         res = requests.get(BASE_URL, params={**params, "apikey": api_key}, timeout=TIMEOUT_SECONDS)
@@ -41,6 +42,9 @@ def _call_api(params: dict, api_key: str) -> dict:
     except requests.RequestException as e:
         # `from None` drops the original exception, whose message contains the key
         raise ExtractError(f"{params.get('symbol')}: request failed: {_redact(str(e), api_key)}") from None
+    finally:
+        # Start the clock once the response is back (or the request failed)
+        _last_call_at = time.monotonic()
 
 
 def _error_reason(data: dict) -> str:
