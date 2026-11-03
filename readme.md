@@ -13,7 +13,7 @@ screen stocks and explore their price history.
 - **Model-ready:** a `price_features` view with returns, moving averages, volatility and a
   next-day target, built point-in-time to avoid look-ahead bias
 - **Operable:** scheduled with cron, every run audited in the database, logs tagged by run ID,
-  non-zero exit codes on failure, and 42 automated tests run in CI
+  non-zero exit codes on failure, and 48 automated tests run in CI
 
 ## Screenshots
 
@@ -96,15 +96,21 @@ Bad data is caught in four layers:
 - **Atomic per stock.** Each stock loads in one transaction, so a crash can't leave half a stock
   loaded.
 - **Failure isolation.** One stock failing doesn't stop the others. The run is marked `partial`.
+- **Fail fast on the daily quota.** Once the API reports its daily limit is used up, the run
+  stops immediately and records which stocks were skipped, instead of making calls that can't
+  succeed. The per-second burst limit is recognised separately, since it's only temporary.
 - **Rate limiting.** Calls are spaced 2 seconds apart, using a monotonic clock so system clock
   changes can't break the pacing.
 - **Exit codes.** `0` only if every stock succeeded. Anything else exits `1`, so the scheduler
   can flag it.
+- **No secrets in logs.** The API key is redacted from every error message before it's logged
+  or stored. Alpha Vantage echoes the key in some errors, and HTTP errors include the request URL.
 
 ## Observability
 
-Every log line is tagged with its run ID and written to the terminal and to `logs/pipeline.log`
-(rotated at 1 MB):
+Every log line is tagged with its run ID and written to `logs/pipeline.log` (rotated at 1 MB),
+and to the terminal when you run it by hand. Expected failures (API errors, invalid data) are
+logged as one clear line. Unexpected ones (bugs, database errors) include a full traceback.
 
 ```
 2026-11-02 22:30:01 INFO [run 14] pipeline.run: Run started: 20 symbols to process

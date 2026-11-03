@@ -61,12 +61,55 @@ def test_unexpected_response_shape_is_raised(http):
         extract.fetch_daily_prices("PFE", "my-key")
 
 
-def test_http_errors_are_raised(http):
+def test_http_errors_are_raised_without_leaking_the_key(http):
     respond_with(http, {})
-    http.response.raise_for_status.side_effect = requests.HTTPError("503 Service Unavailable")
+    http.response.raise_for_status.side_effect = requests.HTTPError(
+        "503 Server Error for url: https://www.alphavantage.co/query?symbol=PFE&apikey=my-key"
+    )
 
-    with pytest.raises(requests.HTTPError):
+    with pytest.raises(extract.ExtractError) as error:
         extract.fetch_daily_prices("PFE", "my-key")
+
+    assert "my-key" not in str(error.value)
+    assert "PFE: request failed: 503" in str(error.value)
+    assert error.value.__cause__ is None and error.value.__suppress_context__  # original error dropped
+
+
+def test_network_errors_are_raised_as_extract_errors(http, monkeypatch):
+    def unreachable(url, params, timeout):
+        raise requests.ConnectionError("Failed to establish a new connection")
+
+    monkeypatch.setattr(extract.requests, "get", unreachable)
+
+    with pytest.raises(extract.ExtractError, match="PFE: request failed: Failed to establish"):
+        extract.fetch_daily_prices("PFE", "my-key")
+
+
+def test_api_key_is_redacted_from_api_error_messages(http, daily_quota_response):
+    respond_with(http, daily_quota_response)  # message contains "fake-key"
+
+    with pytest.raises(extract.ExtractError) as error:
+        extract.fetch_daily_prices("PFE", "fake-key")
+
+    assert "fake-key" not in str(error.value)
+    assert "your API key as ***" in str(error.value)
+
+
+def test_daily_quota_message_is_recognised(http, daily_quota_response):
+    respond_with(http, daily_quota_response)
+
+    with pytest.raises(extract.DailyQuotaExceeded):
+        extract.fetch_daily_prices("PFE", "fake-key")
+
+
+def test_per_second_burst_limit_is_not_mistaken_for_the_daily_quota(http, burst_limit_response):
+    # The burst message also mentions "25 requests per day", but it's only temporary
+    respond_with(http, burst_limit_response)
+
+    with pytest.raises(extract.ExtractError) as error:
+        extract.fetch_daily_prices("PFE", "fake-key")
+
+    assert not isinstance(error.value, extract.DailyQuotaExceeded)
 
 
 def test_back_to_back_calls_are_spaced_out(http, daily_response):

@@ -8,9 +8,9 @@ from pathlib import Path
 
 from pipeline.config import load_settings
 from pipeline.db import finish_run, get_active_symbols, get_connection, start_run
-from pipeline.extract import fetch_daily_prices
+from pipeline.extract import DailyQuotaExceeded, ExtractError, fetch_daily_prices
 from pipeline.load import upsert_daily_prices
-from pipeline.transform import check_freshness, to_daily_price_rows
+from pipeline.transform import ValidationError, check_freshness, to_daily_price_rows
 
 # Explicit name: under `python -m pipeline.run`, __name__ would be "__main__"
 logger = logging.getLogger("pipeline.run")
@@ -35,10 +35,13 @@ _run_context = _RunContext()
 def configure_logging() -> None:
     LOG_DIR.mkdir(exist_ok=True)
     handlers = [
-        logging.StreamHandler(),
         # Rotate at ~1 MB, keeping 5 old files, so the log can't fill the disk
         RotatingFileHandler(LOG_DIR / "pipeline.log", maxBytes=1_000_000, backupCount=5),
     ]
+    # Echo to the terminal only when someone is watching one. Under cron, stderr
+    # goes to logs/cron.log, which should only catch crashes before logging starts.
+    if sys.stderr.isatty():
+        handlers.append(logging.StreamHandler())
     for handler in handlers:
         handler.addFilter(_run_context)
         handler.setFormatter(logging.Formatter(LOG_FORMAT))
@@ -60,7 +63,7 @@ def process_symbol(conn, symbol: str, api_key: str, run_id: int | None = None) -
         logger.warning("Rejected bar: %s", reason)
     if not rows:
         # Every single day failed validation: treat as a failure, not a quiet success
-        raise ValueError(f"{symbol}: no valid rows out of {len(series)}")
+        raise ValidationError(f"{symbol}: no valid rows out of {len(series)}")
     check_freshness(symbol, rows, today=date.today())
 
     loaded = upsert_daily_prices(conn, rows, run_id)
@@ -84,17 +87,28 @@ def run(api_key: str, database_url: str, only: list[str] | None = None) -> str:
     with closing(get_connection(database_url)) as conn:
         run_id = start_run(conn)
         _run_context.run_id = run_id
-        symbols, errors, total_rows = [], {}, 0
+        symbols, errors, skipped, total_rows = [], {}, [], 0
 
         try:
             symbols = _select_symbols(conn, only)
             logger.info("Run started: %d symbols to process", len(symbols))
-            for symbol in symbols:
-                # One bad symbol shouldn't stop the rest from loading
+            for i, symbol in enumerate(symbols):
+                # One bad symbol shouldn't stop the rest from loading...
                 try:
                     total_rows += process_symbol(conn, symbol, api_key, run_id)
+                except DailyQuotaExceeded as e:
+                    # ...unless the daily API limit is used up: every later call would fail too
+                    errors[symbol] = _describe(symbol, e)
+                    skipped = symbols[i + 1:]
+                    logger.error("%s -> stopping, %d remaining symbols skipped", errors[symbol], len(skipped))
+                    break
+                except (ExtractError, ValidationError) as e:
+                    # Expected failures (bad API response, bad data): the message says it all
+                    errors[symbol] = _describe(symbol, e)
+                    logger.error("Failed: %s", errors[symbol])
                 except Exception as e:
-                    errors[symbol] = str(e)
+                    # Anything else is a bug or an infrastructure problem: keep the traceback
+                    errors[symbol] = _describe(symbol, e)
                     logger.exception("Failed to process %s", symbol)
         except Exception as e:
             # Something outside the per-symbol loop broke: still record the run as failed
@@ -102,16 +116,24 @@ def run(api_key: str, database_url: str, only: list[str] | None = None) -> str:
             finish_run(conn, run_id, "failed", len(symbols), len(errors), total_rows, f"run crashed: {e!r}")
             raise
 
-        status = run_status(len(symbols), len(errors))
-        error = "; ".join(f"{s}: {msg}" for s, msg in errors.items()) or (
-            None if symbols else "no active symbols to process"
-        )
-        finish_run(conn, run_id, status, len(symbols), len(errors), total_rows, error)
+        failed = len(errors) + len(skipped)
+        status = run_status(len(symbols), failed)
+        messages = list(errors.values())
+        if skipped:
+            messages.append(f"skipped after daily quota ran out: {', '.join(skipped)}")
+        error = "; ".join(messages) or (None if symbols else "no active symbols to process")
+        finish_run(conn, run_id, status, len(symbols), failed, total_rows, error)
         logger.info(
             "Run %s: %d succeeded, %d failed, %d rows loaded",
-            status, len(symbols) - len(errors), len(errors), total_rows,
+            status, len(symbols) - failed, failed, total_rows,
         )
     return status
+
+
+def _describe(symbol: str, error: Exception) -> str:
+    # Pipeline errors already start with the symbol ("AAPL: ..."); others don't
+    message = str(error)
+    return message if message.startswith(symbol) else f"{symbol}: {message}"
 
 
 def main() -> int:

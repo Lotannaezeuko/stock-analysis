@@ -87,8 +87,38 @@ def test_one_failing_symbol_makes_the_run_partial(db, db_url, fake_api):
     assert status == "partial"
     [(attempted, failed, error)] = query(db, "SELECT symbols_attempted, symbols_failed, error FROM pipeline_runs")
     assert (attempted, failed) == (2, 1)
-    assert "MSFT: rate limit" in error
+    assert error == "MSFT: rate limit"  # symbol appears once, not "MSFT: MSFT: ..."
     assert query(db, "SELECT DISTINCT symbol FROM daily_prices") == [("AAPL",)]
+
+
+def test_run_stops_as_soon_as_the_daily_quota_runs_out(db, db_url, fake_api, daily_quota_response):
+    fake_api.responses["AMZN"] = daily_quota_response
+
+    status = run("fake-key", db_url, only=["AAPL", "AMZN", "GOOGL", "META"])
+
+    # AAPL loads, AMZN hits the limit, GOOGL and META are never requested
+    assert [c["symbol"] for c in fake_api.calls] == ["AAPL", "AMZN"]
+    assert status == "partial"
+    [(attempted, failed, rows, error)] = query(
+        db, "SELECT symbols_attempted, symbols_failed, rows_loaded, error FROM pipeline_runs"
+    )
+    assert (attempted, failed, rows) == (4, 3, 100)
+    assert error.startswith("AMZN: We have detected your API key as ***")
+    assert error.endswith("skipped after daily quota ran out: GOOGL, META")
+    assert "fake-key" not in error
+
+
+def test_run_duration_is_recorded_even_when_every_symbol_fails(db, db_url, fake_api):
+    # Regression: with no commits during the run, finished_at was frozen at the
+    # run's start (a 40-second live run was recorded as taking 0.03 seconds)
+    fake_api.responses["AAPL"] = {"Information": "rate limit"}
+    fake_api.responses["MSFT"] = {"Information": "rate limit"}
+    fake_api.delay = 0.25  # each call takes a quarter of a second
+
+    run("fake-key", db_url, only=["AAPL", "MSFT"])
+
+    [(duration,)] = query(db, "SELECT extract(epoch FROM finished_at - started_at) FROM pipeline_runs")
+    assert duration >= 0.5
 
 
 def test_stale_data_is_never_loaded(db, db_url, fake_api, daily_response):
